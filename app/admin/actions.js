@@ -67,3 +67,70 @@ export async function keluarAdmin() {
 
   redirect("/admin/login");
 }
+
+/**
+ * Mengganti password admin yang sedang login via Supabase Auth di server.
+ */
+export async function gantiPassword(_stateSebelumnya, formData) {
+  const passwordBaru = String(formData.get("password_baru") ?? "");
+  const konfirmasi = String(formData.get("konfirmasi_password") ?? "");
+
+  if (passwordBaru.length < 8) {
+    return {
+      status: "error",
+      pesan: "Password baru minimal 8 karakter.",
+    };
+  }
+
+  if (passwordBaru !== konfirmasi) {
+    return {
+      status: "error",
+      pesan: "Konfirmasi password tidak sama dengan password baru.",
+    };
+  }
+
+  try {
+    const supabase = await buatClientSesi();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return {
+        status: "error",
+        pesan: "Anda harus masuk sebagai admin terlebih dahulu sebelum mengganti password.",
+      };
+    }
+
+    const { error } = await supabase.auth.updateUser({ password: passwordBaru });
+
+    if (error) {
+      console.error("Gagal mengganti password admin:", error.message);
+      const samaDenganLama = error.message
+        .toLowerCase()
+        .includes("different from the old password");
+
+      return {
+        status: "error",
+        pesan: samaDenganLama
+          ? "Password baru harus berbeda dari password yang sekarang dipakai."
+          : "Gagal mengganti password. Pastikan Anda masih masuk lalu coba lagi.",
+      };
+    }
+
+    return {
+      status: "sukses",
+      pesan: "Password berhasil diganti.",
+    };
+  } catch (err) {
+    console.error("Kesalahan saat ganti password admin:", err);
+    return {
+      status: "error",
+      pesan:
+        err instanceof Error && err.message.includes("SUPABASE_")
+          ? "Konfigurasi autentikasi server belum lengkap. Hubungi pengelola aplikasi."
+          : "Terjadi kesalahan saat menghubungi layanan autentikasi. Coba lagi nanti.",
+    };
+  }
+}
