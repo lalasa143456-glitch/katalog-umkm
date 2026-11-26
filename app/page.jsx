@@ -1,12 +1,35 @@
 import KartuProduk from "@/components/KartuProduk";
-import CatatanBelumAktif from "@/components/CatatanBelumAktif";
-import { produkContoh } from "@/lib/data-contoh";
+import { buatClientServer } from "@/lib/supabase/server";
 import { toko } from "@/lib/toko";
 
-// US-01: halaman ini masih memakai data contoh.
-// Tugas peserta: ambil daftar produk dari tabel "produk" di Supabase, di sisi server.
-export default function HalamanKatalog() {
-  const daftarProduk = produkContoh;
+export const dynamic = "force-dynamic";
+
+export default async function HalamanKatalog() {
+  let daftarProduk = [];
+  let pesanError = null;
+
+  try {
+    const supabase = buatClientServer();
+    const { data, error } = await supabase
+      .from("produk")
+      .select("id, nama, harga, deskripsi, foto_url, kategori, created_at")
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: true });
+
+    if (error) {
+      console.error("Gagal mengambil daftar produk dari Supabase:", error);
+      pesanError =
+        "Gagal mengambil daftar produk dari database. Periksa koneksi atau pengaturan server, lalu muat ulang halaman.";
+    } else {
+      daftarProduk = data ?? [];
+    }
+  } catch (err) {
+    console.error("Kesalahan koneksi Supabase di HalamanKatalog:", err);
+    pesanError =
+      err instanceof Error && err.message.includes("SUPABASE_")
+        ? "Konfigurasi database belum lengkap. Pastikan SUPABASE_URL dan SUPABASE_SECRET_KEY sudah diatur di server."
+        : "Gagal mengambil daftar produk dari database. Periksa koneksi atau pengaturan server, lalu muat ulang halaman.";
+  }
 
   return (
     <>
@@ -22,14 +45,24 @@ export default function HalamanKatalog() {
         <h2 id="judul-produk" className="text-xl font-bold">
           Produk kami
         </h2>
-        <CatatanBelumAktif>
-          Masih data contoh. Sambungkan ke database: lihat US-01 di docs/user-stories.md.
-        </CatatanBelumAktif>
-        <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-          {daftarProduk.map((produk) => (
-            <KartuProduk key={produk.id} produk={produk} />
-          ))}
-        </div>
+        {pesanError ? (
+          <p
+            role="alert"
+            className="rounded-lg border border-bahaya bg-latar px-4 py-3 text-sm text-bahaya"
+          >
+            {pesanError}
+          </p>
+        ) : daftarProduk.length === 0 ? (
+          <p className="rounded-lg border border-garis bg-permukaan px-4 py-6 text-sm text-teks-lembut">
+            Belum ada produk
+          </p>
+        ) : (
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
+            {daftarProduk.map((produk) => (
+              <KartuProduk key={produk.id} produk={produk} />
+            ))}
+          </div>
+        )}
       </section>
     </>
   );
